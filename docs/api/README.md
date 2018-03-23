@@ -1,18 +1,18 @@
-# ForkDelta API
+# coinEstate API
 
-ForkDelta's API gives you access to ticker information, orders, trades, deposits, withdrawals, and anything else available through our website. You can also interact directly with the smart contract to get trades, deposits, and withdrawals. For an example of directly working with the contract, take a look at our [contract_observer.py](https://github.com/forkdelta/backend-replacement/blob/master/app/services/contract_observer.py). ForkDelta's orderbook is primarily stored offchain, but can be accessed with our public interface or through this API. To learn more about our order system, take a look at our [backend repository](https://github.com/forkdelta/backend-replacement).
+coinEstate's API gives you access to ticker information, orders, trades, deposits, withdrawals, and anything else available through our website. You can also interact directly with the smart contract to get trades, deposits, and withdrawals. For an example of directly working with the contract, take a look at our [contract_observer.py](https://github.com/somidax/backend-replacement/blob/master/app/services/contract_observer.py). coinEstate's orderbook is primarily stored offchain, but can be accessed with our public interface or through this API. To learn more about our order system, take a look at our [backend repository](https://github.com/somidax/backend-replacement).
 
 
 # Websocket Server
 
-ForkDelta's API is socket.io based. The API utilizes SSL on all connections to keep your data private.
-You can connect to ForkDelta's API through this endpoint:
+coinEstate's API is socket.io based. The API utilizes SSL on all connections to keep your data private.
+You can connect to RYXEX's API through this endpoint:
 
- - https://api.forkdelta.com
+ - https://api.somidax.net
 
 ## Requests
 
-There are two messages you can send to the ForkDelta websocket API:
+There are two messages you can send to the RYXEX websocket API:
 1. getMarket
 2. message
 
@@ -46,9 +46,9 @@ Example `returnTicker`:
       "tokenAddr":"0x11f8dd7699147566cf193596083d45c8f592c4ba",
 [...]
 ```
-If you would like to get data on each ticker including names, please take a look at our [tokenbase repository](https://github.com/forkdelta/tokenbase). If you would just like a simple way to access ticker symbols, take a look at our [configuration JSON](https://forkdelta.github.io/config/main.json).
+If you would like to get data on each ticker including names, please take a look at our [baseHub repository](https://github.com/somidax/baseHub). If you would just like a simple way to access ticker symbols, take a look at our [configuration JSON](https://github.com/somidax/coinEstate/blob/master/config/main.json).
 
-We also supply a REST version of this data, but highly recommend using the websocket server for the most up to date information. The REST version can be found here: https://api.forkdelta.com/returnTicker
+We also supply a REST version of this data, but highly recommend using the websocket server for the most up to date information. The REST version can be found here: https://api.somidax.net/returnTicker
 
 #### trades | myTrades
 
@@ -150,7 +150,7 @@ Example `myFunds`:
 
 ### 2) message ( order )
 
-`message` allows you to post an order directly to ForkDelta and accepts one required parameter.
+`message` allows you to post an order directly to RYXEX and accepts one required parameter.
 
 `order` must be a properly formatted JSON object containing the following properties:
 - `amountGive`: the amount you want to give (in wei or the base unit of the token)
@@ -173,9 +173,9 @@ Example `myFunds`:
 Example error result:
 ```
 [
-	422,
-	"Cannot post order because it has already expired",
-	{ "blockNumber": 5131620, "expires": 5131666, "date": 2017-10-17T17:36:41.000Z }
+    422,
+    "Cannot post order because it has already expired",
+    { "blockNumber": 5131620, "expires": 5131666, "date": 2017-10-17T17:36:41.000Z }
 ]
 ```
    
@@ -203,7 +203,7 @@ New deposits and withdrawals will be emitted as they occur. The data structure o
 ---
 
 ## More Information
-For more information, or to see how this websocket server works, take a look at [websocket_server.py](https://github.com/forkdelta/backend-replacement/blob/master/app/services/websocket_server.py)
+For more information, or to see how this websocket server works, take a look at [websocket_server.py](https://github.com/somidax/backend-replacement/blob/master/app/services/websocket_server.py)
 
 ---
 
