@@ -2,10 +2,10 @@
 
 [![Build Status](https://travis-ci.org/somidax/backend-replacement.svg?branch=master)](https://github.com/somidax/backend-replacement)
 
-[![contributions welcome](https://github.com/somidax/baseHub/issues)
+[![contributions welcome]()](https://github.com/somidax/baseHub/issues)
 
 
-This repository hosts the source code of ForkDelta backend. The backend provides off-chain orderbook functionality and an API to get a filtered view of Ethereum blockchain events on an [EtherDelta-like contract](https://www.reddit.com/r/EtherDelta/comments/6kdiyl/smart_contract_overview/).
+This repository hosts the source code of coinEstate backend. The backend provides off-chain orderbook functionality and an API to get a filtered view of Ethereum blockchain events on an [EtherDelta-like contract](https://www.reddit.com/r/EtherDelta/comments/6kdiyl/smart_contract_overview/).
 
 Best way to learn about a system is to read the source code. Start with a look at [docker-compose.yml](docker-compose.yml).
 
