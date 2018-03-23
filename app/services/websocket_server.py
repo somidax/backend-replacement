@@ -23,7 +23,7 @@ ZERO_ADDR_BYTES = Web3.toBytes(hexstr=ZERO_ADDR)
 logger = logging.getLogger('websocket_server')
 logger.setLevel(logging.DEBUG)
 
-ALLOWED_ORIGIN_SUFFIXES = ('forkdelta.com', 'forkdelta.github.io', 'deltabalances.github.io', 'localhost', 'devd.io')
+ALLOWED_ORIGIN_SUFFIXES = ('somidax.com', 'coinestate.somidax.net', 'somidax.github.io', 'deltabalances.github.io', 'localhost', 'devd.io')
 from urllib.parse import urlparse
 def is_origin_allowed(origin):
     """
@@ -32,11 +32,12 @@ def is_origin_allowed(origin):
     Otherwise, returns False.
 
     Eg.:
-    is_origin_allowed("https://forkdelta.github.io") => True
-    is_origin_allowed("https://forkdelta.com/") => True
-    is_origin_allowed("https://api.forkdelta.com/") => True
+    is_origin_allowed("https://somidax.github.io") => True
+    is_origin_allowed("https://somidax.net/") => True
+    is_origin_allowed("https://coinestate.somidax.net/") => True
+    is_origin_allowed("https://api.somidax.net/") => True
     is_origin_allowed("file://") => False
-    is_origin_allowed("https://forkdelta.bs/") => False
+    is_origin_allowed("https://somidax.bs/") => False
     is_origin_allowed("https://forkscamster.github.io/") => False
     """
 
