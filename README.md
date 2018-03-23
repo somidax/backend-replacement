@@ -1,6 +1,6 @@
 # ![coinEtate logo](https://github.com/somidax/coinEstate/blob/master/images/logo.png) coinEstate backend replacement
 
-[![Build Status](https://travis-ci.org/forkdelta/backend-replacement.svg?branch=master)](https://github.com/somidax/backend-replacement)
+[![Build Status](https://travis-ci.org/somidax/backend-replacement.svg?branch=master)](https://github.com/somidax/backend-replacement)
 
 [![![contributions welcome](https://github.com/somidax/coinEstate/blob/master/images/logo.png)](https://github.com/somidax/baseHub/issues)
 
