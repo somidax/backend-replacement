@@ -1,8 +1,8 @@
-# ![ForkDelta logo](https://forkdelta.github.io/next/favicon-32x32.png) ForkDelta Backend used by coinestate
+# ![coinEtate logo](https://github.com/somidax/coinEstate/blob/master/images/logo.png) coinEstate backend replacement
 
-[![Build Status](https://travis-ci.org/forkdelta/backend-replacement.svg?branch=master)](https://travis-ci.org/forkdelta/backend-replacement)
-[![Known Vulnerabilities](https://snyk.io/test/github/forkdelta/backend-replacement/badge.svg)](https://snyk.io/test/github/forkdelta/backend-replacement)
-[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](https://github.com/forkdelta/tokenbase/issues)
+[![Build Status](https://travis-ci.org/forkdelta/backend-replacement.svg?branch=master)](https://github.com/somidax/backend-replacement)
+
+[![![contributions welcome](https://github.com/somidax/coinEstate/blob/master/images/logo.png)](https://github.com/somidax/baseHub/issues)
 
 
 This repository hosts the source code of ForkDelta backend. The backend provides off-chain orderbook functionality and an API to get a filtered view of Ethereum blockchain events on an [EtherDelta-like contract](https://www.reddit.com/r/EtherDelta/comments/6kdiyl/smart_contract_overview/).
@@ -11,7 +11,7 @@ Best way to learn about a system is to read the source code. Start with a look a
 
 ## API
 
-For information and documentation on ForkDelta's API, look here: https://github.com/forkdelta/backend-replacement/tree/master/docs/api
+For information and documentation on ForkDelta's API, look here: https://github.com/somidax/backend-replacement/tree/master/docs/api
 
 ## Developing
 
@@ -42,10 +42,12 @@ Tips:
 ## Contributors
 * [Arseniy Ivanov](https://github.com/freeatnet)
 * [Jonathon Dunford](https://github.com/JonathonDunford)
+* [SOMIDAX](https://github.com/SOMIDAX)
+
 
 ## License
 
-Copyright (C) 2018, Arseniy Ivanov and ForkDelta Contributors
+Copyright (C) 2018, coinEstate
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
