@@ -1,7 +1,7 @@
 version: '2'
 services:
   contract_observer:
-    image: somidax/backend-replacement
+    image: somidax/backend
     build: .
     depends_on:
       - postgres
