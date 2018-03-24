@@ -1,205 +1,153 @@
-import asyncio
-from datetime import datetime
-from decimal import getcontext, InvalidOperation, DivisionByZero
-import logging
-from queue import Queue, Empty as QueueEmpty
-from web3 import Web3
+'''
+TODO?
+After the first time this is run,
+we could change it to only grab orders/trades
+on an interval so that it only has to process
+the new orders/trades from the last time this
+was run?
+'''
 
+from aiohttp import web
 from ..app import App
+import asyncio
 from ..src.erc20_token import ERC20Token
+import logging
+from ..src.order_enums import OrderState
+from time import time
+import socketio
+from web3 import Web3
+from datetime import datetime
 
-logger = logging.getLogger('services.ticker')
-logger.setLevel(logging.DEBUG)
+sio = socketio.AsyncServer()
+app = web.Application()
+sio.attach(app)
 
-getcontext().prec = 8
-
-# TODO: finally extract these into constants
 ZERO_ADDR = "0x0000000000000000000000000000000000000000"
 ZERO_ADDR_BYTES = Web3.toBytes(hexstr=ZERO_ADDR)
-FILTER_ORDERS_UNDER_ETH = 0.001
 
-tokens_queue = Queue()
-def fill_queue():
-    for token in App().tokens():
-        tokens_queue.put(token["addr"].lower())
-    logger.info("%i tokens added to ticker queue", len(App().tokens()))
+logger = logging.getLogger('ticker_observer')
 
-fill_queue()
-
-async def get_trades_volume(token_hexstr):
-    """
-    Given a token address, return the volume of trades for that token in the past
-    24 hrs from the instant of calling this function.
-
-    Returns a Record object with two columns: quote_volume and base_volume.
-    """
+async def get_tickers():
 
     async with App().db.acquire_connection() as conn:
-        return await conn.fetchrow("""
-            SELECT
-                COALESCE(SUM(CASE WHEN "token_get" = $1 THEN "amount_give" ELSE "amount_get" END), 0) AS quote_volume,
-                COALESCE(SUM(CASE WHEN "token_get" = $1 THEN "amount_get" ELSE "amount_give" END), 0) AS base_volume
-            FROM trades
-            WHERE (("token_get" = $1 AND "token_give" = $2)
-                    OR ("token_give" = $1 AND "token_get" = $2))
-                AND "date" >= NOW() - '1 day'::INTERVAL
-            """,
-            Web3.toBytes(hexstr=ZERO_ADDR),
-            Web3.toBytes(hexstr=token_hexstr))
-
-async def get_last_trade(token_hexstr):
-    """
-    Given a token address, returns the latest trade for that token.
-    """
-
-    async with App().db.acquire_connection() as conn:
-        return await conn.fetchrow("""
-            SELECT *
-            FROM trades
-            WHERE (("token_get" = $1 AND "token_give" = $2)
-                    OR ("token_give" = $1 AND "token_get" = $2))
-                AND ("amount_get" > 0 AND "amount_give" > 0)
-            ORDER BY "date" DESC
-            LIMIT 1
-            """,
-            Web3.toBytes(hexstr=ZERO_ADDR),
-            Web3.toBytes(hexstr=token_hexstr))
-
-async def get_market_spread(token_hexstr, current_block):
-    """
-    Given a token address, returns the lowest ask and the highest bid.
-    """
-    
-    base_contract = ERC20Token(ZERO_ADDR)
-
-    async with App().db.acquire_connection() as conn:
-        return await conn.fetchrow("""
-            SELECT
-                (SELECT MAX(amount_give / amount_get::numeric)
-                    FROM orders
-                    WHERE ("token_give" = $1 AND "token_get" = $2)
-                        AND "state" = 'OPEN'::orderstate
-                        AND "expires" > $3
-                        AND ("amount_get" > 0 AND "amount_give" > 0)
-                        AND ("available_volume" IS NULL OR "available_volume" > 0)
-                        AND (CASE WHEN "available_volume" IS NULL THEN
-                                amount_get * (amount_give / amount_get::numeric) > $4
-                            ELSE
-                                available_volume * (amount_give / amount_get::numeric) > $4
-                            END)
-                    ) AS bid,
-                (SELECT MIN(amount_get / amount_give::numeric)
-                    FROM orders
-                    WHERE ("token_give" = $2 AND "token_get" = $1)
-                        AND "state" = 'OPEN'::orderstate
-                        AND "expires" > $3
-                        AND ("amount_get" > 0 AND "amount_give" > 0)
-                        AND ("available_volume" IS NULL OR "available_volume" > 0)
-                        AND (CASE WHEN "available_volume" IS NULL THEN
-                                amount_give * (amount_get / amount_give::numeric) > $4
-                            ELSE
-                                available_volume * (amount_get / amount_give::numeric) > $4
-                            END)
-                    ) AS ask
-            """,
-            ZERO_ADDR_BYTES,
-            Web3.toBytes(hexstr=token_hexstr),
-            current_block,
-            base_contract.normalize_value(FILTER_ORDERS_UNDER_ETH))
-
-async def save_ticker(ticker_info):
-    async with App().db.acquire_connection() as conn:
-        return await conn.execute(
+        return await conn.fetch(
             """
-            INSERT INTO tickers
-            ("token_address", "quote_volume", "base_volume", "last", "bid", "ask", "updated")
-            VALUES
-            (
-                $1, $2, $3, $4, $5, $6, $7
-            )
-            ON CONFLICT ON CONSTRAINT tickers_pkey DO
-                UPDATE SET
-                    "quote_volume" = $2,
-                    "base_volume" = $3,
-                    "last" = $4,
-                    "bid" = $5,
-                    "ask" = $6,
-                    "updated" = $7
-                WHERE tickers.token_address = $1
-            """,
-            Web3.toBytes(hexstr=ticker_info["token_address"]),
-            ticker_info["quote_volume"],
-            ticker_info["base_volume"],
-            ticker_info["last"],
-            ticker_info["bid"],
-            ticker_info["ask"],
-            datetime.utcnow())
+            SELECT *
+            FROM tickers
+            """
 
-async def update_ticker(token_addr):
-    current_block = App().web3.eth.blockNumber
-    coin_contract = ERC20Token(token_addr)
-    base_contract = ERC20Token(ZERO_ADDR)
+# Maybe there is a fancy SQL statement here that will make this faster? 
+async def get_orders():
 
-    ticker_info = { "token_address": token_addr }
+    async with App().db.acquire_connection() as conn:
+        return await conn.fetch(
+            """
+            SELECT token_give, amount_give, token_get, amount_get, expires
+            FROM orders
+            """
 
-    volumes = await get_trades_volume(token_addr)
-    ticker_info.update({
-        "quote_volume": coin_contract.denormalize_value(volumes["quote_volume"]),
-        "base_volume": base_contract.denormalize_value(volumes["base_volume"]),
-    })
+# TODO: Are trades pruned or do I need to add a WHERE here by block number?    
+async def get_trades():
 
-    trade = await get_last_trade(token_addr)
-    if trade:
-        side = "buy" if trade["token_get"] == ZERO_ADDR_BYTES else "sell"
-        # Compute the price.
-        try:
-            if side == "buy":
-                price = base_contract.denormalize_value(trade["amount_get"]) \
-                    / coin_contract.denormalize_value(trade["amount_give"])
+    async with App().db.acquire_connection() as conn:
+        return await conn.fetch(
+            """
+            SELECT token_give, amount_give, token_get, amount_get
+            FROM trades
+            ORDER BY block_number DESC, date DESC
+            """
+
+# Scan passed in orders and update the `tickers` table. Bid, Ask, quoteVolume, and baseVolume is updated.
+# TODO: quoteVolume, baseVolume
+async def parse_orders(tickers, orders): 
+
+    # This is the object we will use to update `tickers` with.
+    ticker_updates = {}
+    
+    for order in orders:
+        
+        # Check if this is a buy or sell order by seeing if the given token is ETH
+        side = "buy" if order["token_give"] == ZERO_ADDR_BYTES else "sell"
+        
+        if side == "buy":
+        
+            this_orders_bid = order["amount_give"] / order["amount_get"]
+            
+            # If ticker updates doesn't already have this token, add it to our object to update.
+            if not hasattr(ticker_updates, order["token_get"]):
+                
+                ticker_updates[order["token_get"]] = {
+                    'bid': this_orders_bid.
+                }
+                
             else:
-                price = base_contract.denormalize_value(trade["amount_give"]) \
-                    / coin_contract.denormalize_value(trade["amount_get"])
-        except (InvalidOperation, DivisionByZero):
-            # Somewhere, somehow, with all our high-precision math, we still get
-            # rounding. Or maybe there are somehow 0-trades.
-            logger.debug("Failed to compute price: token=%s side=%s txid=%s logidx=%i amount_get=%s amount_give=%s",
-                token_addr, side, Web3.toHex(trade["transaction_hash"]), trade["log_index"], trade["amount_get"], trade["amount_give"])
-            ticker_info["last"] = None
+                # If there isn't a current recorded bid OR current recorded bid is lower than the bid in this order.
+                if not has_attr(ticker_updates[order["token_get"]], 'bid') || ticker_updates[order["token_get"]]["bid"] < this_orders_bid:
+                    ticker_updates[order["token_get"]]["bid"] = this_orders_bid
+            
         else:
-            ticker_info["last"] = price
-    else: # No last price available
-        ticker_info["last"] = None
+            
+            this_orders_ask = order["amount_get"] / order["amount_give"]
+            
+            # If ticker updates doesn't already have this token, add it to our object to update.
+            if not hasattr(ticker_updates, order["token_give"]):
+                
+                ticker_updates[order["token_give"]] = {
+                    'ask': this_orders_ask,
+                }
+                
+            else:                    
+                # If there is a current recorded ask OR if current recorded ask is higher than the ask in this order.
+                if not has_attr(ticker_updates[order["token_give"]], 'ask') || ticker_updates[order["token_give"]]["ask"] > this_orders_ask:
+                    ticker_updates[order["token_give"]]["ask"] = this_orders_ask
+                
+    # TODO: Submit the ticker_updates to `tickers`
+    # TODO: Fill modified date with "modified": datetime.now().isoformat()
+    
+    return
 
-    # TODO: percent_change
-
-    spread = await get_market_spread(token_addr, current_block)
-    if spread["ask"]:
-        # Spread comes back in token/base native values, denormalize it here
-        ticker_info["ask"] = spread["ask"] * base_contract.denormalize_value(1.0) \
-                                / coin_contract.denormalize_value(1.0)
-    else:
-        ticker_info["ask"] = None
-
-    if spread["bid"]:
-        ticker_info["bid"] = spread["bid"] * base_contract.denormalize_value(1.0) \
-                                / coin_contract.denormalize_value(1.0)
-    else:
-        ticker_info["bid"] = None
-
-    logger.debug(ticker_info)
-    await save_ticker(ticker_info)
-
-
-async def main():
-    while True:
-        try:
-            token = tokens_queue.get_nowait()
-        except QueueEmpty:
-            fill_queue()            
+# Scan passed in trades and update the `tickers` table. Last and percentChange is updated.
+# TODO: percentChange
+async def parse_trades(tickers, trades): 
+    
+    # This is the object we will use to update `tickers` with.
+    ticker_updates = {}
+    
+    for trade in trades:
+        
+        # Check if this is a buy or sell order by seeing if the given token is ETH
+        side = "buy" if trade["token_give"] == ZERO_ADDR_BYTES else "sell"
+        
+        if side == "buy"
+            
+            # If ticker updates doesn't already have this token, add it to our object to update.
+            if not hasattr(ticker_updates, trade["token_get"]):
+                ticker_updates[trade["token_get"]] = {
+                    'last': trade["amount_give"] / trade["amount_get"],
+                    'percentChange': '',
+                }
+            
         else:
-            await update_ticker(token)
-            await asyncio.sleep(2.0)
+            
+            # If ticker updates doesn't already have this token, add it to our object to update.
+            if not hasattr(ticker_updates, trade["token_give"]):
+                ticker_updates[trade["token_give"]] = {
+                    'last': trade["amount_get"] / trade["amount_give"],
+                    'percentChange': '',
+                }
+                
+    # TODO: Submit the ticker_updates to `tickers`
+    # TODO: Fill modified date with "modified": datetime.now().isoformat()
+    
+    return
 
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+# Main function. Grabs orders and trades, then scans through orders and trades to update `tickers`
+async def update_tickers():
+    
+    orders = await get_orders();
+    trades = await get_trades();
+    tickers = await get_tickers()
+    
+    parse_orders(tickers, orders);
+    parse_trades(tickers, trades);
+    
