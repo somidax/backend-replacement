@@ -41,7 +41,7 @@ def is_origin_allowed(origin):
     is_origin_allowed("https://forkscamster.github.io/") => False
     """
 
-    parsed = urlparse(origin)
+     parsed = urlparse(origin)
     if parsed.scheme in ('http', 'https'):
         return isinstance(parsed.hostname, str) and any([
             parsed.hostname.endswith(suffix)
@@ -198,7 +198,6 @@ async def get_updated_orders(updated_after, token_give_hexstr=None, token_get_he
     """
     Returns a list of order Records created or updated after a given datetime,
     filtered by at most one of token_give_hexstr, token_get_hexstr.
-
     Arguments:
     - updated_after: a datetime object.
     - token_give_hexstr: 0x-prefixed hex encoding Ethereum address, optional.
@@ -313,7 +312,6 @@ async def get_tickers():
 def ticker_key(ticker):
     """
     Given a ticker record, returns a ticker dictionary key.
-
     The key consists of base name (currently, ETH), an underscore, and 9
     first characters of the contract address.
     """
@@ -395,17 +393,7 @@ async def get_market(sid, data):
 
     await sio.emit('market', response, room=sid)
 
-returnTicker
-    # response vars
-    trades = []
-    my_trades = []
-    my_funds = []
-    
-    # get all tickers
-    tickers = await get_tickers()
-    
-    # if token is passed in
-    STREAM_UPDATES_INTERVAL = 5.0
+STREAM_UPDATES_INTERVAL = 5.0
 async def stream_updates():
     while True:
         updated_after = datetime.utcnow()
@@ -438,14 +426,12 @@ from ..src.record_order import record_order
 async def handle_order(sid, data):
     """
     Handles `message` event type. See schema for payload schema.
-
     On error, emits a `messageResult` event to the originating sid with an array payload, containing:
     1. Error code:
       - 400 if the event payload could not be interpreted due to client error (cf. https://httpstatuses.com/400)
       - 422 if the event payload contained semantic errors (cf. https://httpstatuses.com/422)
     2. A string error message with a brief description of the problem.
     3. An object containing some useful details for debugging.
-
     On success, emits a `messageResult` event to the originating sid with an array payload, containing:
     1. Success code 202: the order has been accepted.
     2. A brief message confirming success.
