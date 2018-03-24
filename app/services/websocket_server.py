@@ -395,7 +395,17 @@ async def get_market(sid, data):
 
     await sio.emit('market', response, room=sid)
 
-STREAM_UPDATES_INTERVAL = 5.0
+returnTicker
+    # response vars
+    trades = []
+    my_trades = []
+    my_funds = []
+    
+    # get all tickers
+    tickers = await get_tickers()
+    
+    # if token is passed in
+    STREAM_UPDATES_INTERVAL = 5.0
 async def stream_updates():
     while True:
         updated_after = datetime.utcnow()
