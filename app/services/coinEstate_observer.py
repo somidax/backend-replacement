@@ -19,7 +19,7 @@ from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 from ..src.order_message_validator import OrderMessageValidatorRYXEX
 from ..src.order_signature import order_signature_valid
 
-logger = logging.getLogger('RYXEX_observer')
+logger = logging.getLogger('coinEstate_observer')
 logger.setLevel(logging.DEBUG)
 
 ZERO_ADDR = "0x0000000000000000000000000000000000000000"
@@ -51,7 +51,7 @@ def validate_order(order, current_block=None):
     Validates an order dictionary. Returns True if the order is valid, False otherwise.
     """
 
-    v = OrderMessageValidatorRYXEX()
+    v = OrderMessageValidatorcoinEstate()
     if not v.validate(order):
         error_msg = "Invalid message format"
         details_dict = dict(data=order, errors=v.errors)
