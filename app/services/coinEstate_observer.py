@@ -16,10 +16,10 @@ from time import time
 from ..src.utils import parse_insert_status
 from web3 import Web3
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode
-from ..src.order_message_validator import OrderMessageValidatorEtherdelta
+from ..src.order_message_validator import OrderMessageValidatorRYXEX
 from ..src.order_signature import order_signature_valid
 
-logger = logging.getLogger('etherdelta_observer')
+logger = logging.getLogger('coinEstate_observer')
 logger.setLevel(logging.DEBUG)
 
 ZERO_ADDR = "0x0000000000000000000000000000000000000000"
@@ -51,7 +51,7 @@ def validate_order(order, current_block=None):
     Validates an order dictionary. Returns True if the order is valid, False otherwise.
     """
 
-    v = OrderMessageValidatorEtherdelta()
+    v = OrderMessageValidatorcoinEstate()
     if not v.validate(order):
         error_msg = "Invalid message format"
         details_dict = dict(data=order, errors=v.errors)
