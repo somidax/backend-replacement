@@ -1,7 +1,9 @@
-""Add available_volume to Orders
+"""Add available_volume to Orders
+
 Revision ID: 7719b4610d7e
 Revises: 4ce9876eea54
 Create Date: 2018-02-11 19:00:06.334874
+
 """
 from alembic import op
 from sqlalchemy import Column, Integer
