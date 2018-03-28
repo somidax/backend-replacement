@@ -1,7 +1,7 @@
 version: '2'
 services:
   contract_observer:
-    image: somidax/backend-replacement
+    image: coinEstate/backend
     build: .
     depends_on:
       - postgres
@@ -13,14 +13,13 @@ services:
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
       WS_PROVIDER_URL: ${WS_PROVIDER_URL}
       COMPONENT: contract_observer
+      MIGRATION: head
     links:
       - postgres
       - redis
-    command: >
-      python3 -m app.services.contract_observer
 
   etherdelta_observer:
-    image: somidax/backend-replacement
+    image: coinEstate/backend
     build: .
     depends_on:
       - postgres
@@ -30,15 +29,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
-      COMPONENT: etherDellta_observer
+      COMPONENT: etherdelta_observer
     links:
       - postgres
       - redis
-    command: >
-      python3 -m app.services.etherdelta_observer
 
   huey_consumer:
-    image: somidax/backend-replacement
+    image: coinEstate/backend
     build: .
     depends_on:
       - postgres
@@ -53,30 +50,12 @@ services:
     links:
       - postgres
       - redis
-    command: >
-      huey_consumer.py app.services.huey_consumer.huey -w ${HUEY_CONCURRENCY} -k greenlet
 
   ticker:
-    image: somidax/backend-replacement
+    image: coinEstate/backend
     build: .
     depends_on:
       - postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
-    links:
-      - postgres
-    command: >
-      python3 -m app.services.ticker
-
-  websocket_server:
-    image: somidax/backend-replacement
-    build: .
-    depends_on:
-      - postgres
-      - redis
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -85,12 +64,27 @@ services:
       COMPONENT: ticker
     links:
       - postgres
+
+  websocket_server:
+    image: coinEstate/backend
+    build: .
+    depends_on:
+      - postgres
       - redis
-    command: >
-      python3 -m app.services.websocket_server
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      COMPONENT: websocket
+    links:
+      - postgres
+      - redis
 
   postgres:
     image: postgres:10-alpine
+    ports:
+      - 5431:5432
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
