@@ -1,25 +1,58 @@
 version: '2'
 services:
   contract_observer:
-    image: somidax/backend-replacement
+    image: coinEstate/backend
     build: .
     depends_on:
       - postgres
+      - redis
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
       WS_PROVIDER_URL: ${WS_PROVIDER_URL}
+      COMPONENT: contract_observer
+      MIGRATION: head
     links:
       - postgres
-    volumes:
-      - .:/usr/src/app
-    command: >
-      python3 -m app.services.contract_observer
+      - redis
 
   etherdelta_observer:
-    image: somidax/backend-replacement
+    image: coinEstate/backend
+    build: .
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      COMPONENT: etherdelta_observer
+    links:
+      - postgres
+      - redis
+
+  huey_consumer:
+    image: coinEstate/backend
+    build: .
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      HUEY_CONCURRENCY: ${HUEY_CONCURRENCY}
+      COMPONENT: huey_consumer
+    links:
+      - postgres
+      - redis
+
+  ticker:
+    image: coinEstate/backend
     build: .
     depends_on:
       - postgres
@@ -28,34 +61,36 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      COMPONENT: ticker
     links:
       - postgres
-    volumes:
-      - .:/usr/src/app
-    command: >
-      python3 -m app.services.etherdelta_observer
 
   websocket_server:
-    image: somidax/backend-replacement
+    image: coinEstate/backend
     build: .
     depends_on:
       - postgres
+      - redis
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      COMPONENT: websocket
     links:
       - postgres
-    ports:
-      - "8080:8080"
-    volumes:
-      - .:/usr/src/app
-    command: >
-      python3 -m app.services.websocket_server
+      - redis
 
   postgres:
     image: postgres:10-alpine
+    ports:
+      - 5431:5432
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - /var/lib/postgresql/data
+
+  redis:
+    image: redis:4.0-alpine
