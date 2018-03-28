@@ -2,6 +2,7 @@ from aiohttp import web
 import asyncio
 from datetime import datetime
 import logging
+from ..src.erc20_token import ERC20Token
 from time import time
 import socketio
 from web3 import Web3
