@@ -109,6 +109,3 @@ venv.bak/
 #misc
 .project
 .pydevproject
-
-.PHP 5.3+
-.cURL
