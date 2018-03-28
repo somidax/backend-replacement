@@ -1,76 +1,62 @@
 from aiohttp import web
-from ..app import App
 import asyncio
-from ..src.erc20_token import ERC20Token
+from datetime import datetime
 import logging
-from ..src.order_enums import OrderState
 from time import time
 import socketio
 from web3 import Web3
 import websockets
-from datetime import datetime
+
+from ..app import App
+from ..config import ED_CONTRACT_ADDR
+from ..src.erc20_token import ERC20Token
+from ..src.order_enums import OrderState
 
 sio = socketio.AsyncServer()
 app = web.Application()
+routes = web.RouteTableDef()
 sio.attach(app)
 
 ZERO_ADDR = "0x0000000000000000000000000000000000000000"
 ZERO_ADDR_BYTES = Web3.toBytes(hexstr=ZERO_ADDR)
 
 logger = logging.getLogger('websocket_server')
+logger.setLevel(logging.DEBUG)
+
+ALLOWED_ORIGIN_SUFFIXES = ('https://coinestate.somidax.net','https://api.somidax.net', 'https://somidax.net','https://github.com/somidax/coinEstate/blob/master/index.html', 'https://github.com/somidax/coinEstate','deltabalances.github.io', 'localhost', 'devd.io')
+from urllib.parse import urlparse
+def is_origin_allowed(origin):
+    """
+    Returns True if the origin has hostname suffix in the allowed origins list.
+    Additionally, returns True if the origin has `file` scheme.
+    Otherwise, returns False.
+
+    Eg.:
+    is_origin_allowed("https://github.com/somidax/coinEstate") => True
+    is_origin_allowed("https://somidax.net/") => True
+    is_origin_allowed("https://api.somidax.net/") => True
+    is_origin_allowed("https://github.com/somidax/coinEstate/blob/master/index.html/") => True
+    is_origin_allowed("file://") => False
+    is_origin_allowed("https://RYXEX.bs/") => False
+    is_origin_allowed("https://forkscamster.github.io/") => False
+    """
+
+    parsed = urlparse(origin)
+    if parsed.scheme in ('http', 'https'):
+        return isinstance(parsed.hostname, str) and any([
+            parsed.hostname.endswith(suffix)
+            for suffix in ALLOWED_ORIGIN_SUFFIXES
+        ])
+    elif parsed.scheme == "file":
+        return True
+    return False
 
 @sio.on('connect')
 def connect(sid, environ):
-    print("connect ", sid)
-
-# get returnTicker, grabs data from tickers table
-async def get_tickers(token_hexstr):
-
-    # init
-    where = ''
-    placeholder_args = []
-
-    # if token is passed in, add where addr = token
-    if token_hexstr:
-        where = '("token_address" = $1)'
-        placeholder_args = [Web3.toBytes(hexstr=token_hexstr), ]
-
-    # connect to db and grab data from tickers table
-    async with App().db.acquire_connection() as conn:
-        return await conn.fetch(
-            """
-            SELECT *
-            FROM tickers
-            WHERE {}
-            ORDER BY token_address DESC
-            """.format(where),
-            *placeholder_args)
-
-# format ticker information to camelcase from underscore, sanitize, add modified date
-"""
-    sample return data:
-    ETH_0x8f3470a7388c05ee4e7af3d01d8c722b0ff52374:
-   { tokenAddr: '0x8f3470a7388c05ee4e7af3d01d8c722b0ff52374',
-     quoteVolume: 1000.1,
-     baseVolume: 212.3,
-     last: 0.245,
-     percentChange: 0.0047,
-     bid: 0.243,
-     ask: 0.246,
-     modified: 2018-01-15T15:53:00},
-"""
-def format_ticker(ticker):
-    contract = ERC20Token(ticker["token_address"])
-    return { "{}_{}".format("ETH", Web3.toHex(ticker["token_address"]) : {
-        "tokenAddr": Web3.toHex(ticker["token_address"]),
-        "quoteVolume": str(contract.denormalize_value(ticker["quote_volume"])),
-        "baseVolume": str(contract.denormalize_value(ticker["base_volume"])),
-        "last": str(contract.denormalize_value(ticker["last"])),
-        "percentChange": str(contract.denormalize_value(ticker["percent_change"])),
-        "bid": str(contract.denormalize_value(ticker["bid"])),
-        "ask": str(contract.denormalize_value(ticker["ask"])),
-        "modified": ticker["modified"]
-    }}
+    logger.debug("connect %s", sid)
+    if "HTTP_ORIGIN" in environ and not is_origin_allowed(environ["HTTP_ORIGIN"]):
+        logger.info("Connection denied: Origin %s not allowed, environ=%s", environ["HTTP_ORIGIN"], environ)
+        return False
 
 def format_trade(trade):
     contract_give = ERC20Token(trade["token_give"])
@@ -104,10 +90,10 @@ def format_trade(trade):
         }
 
 async def get_trades(token_hexstr, user_hexstr=None):
-    where = '("token_give" = $1 OR "token_get" = $1)'
-    placeholder_args = [Web3.toBytes(hexstr=token_hexstr), ]
+    where = '(("token_give" = $1 AND "token_get" = $2) OR ("token_get" = $1 AND "token_give" = $2))'
+    placeholder_args = [Web3.toBytes(hexstr=token_hexstr), ZERO_ADDR_BYTES]
     if user_hexstr:
-        where += ' AND ("addr_give" = $2 OR "addr_get" = $2)'
+        where += ' AND ("addr_give" = $3 OR "addr_get" = $3)'
         placeholder_args.append(Web3.toBytes(hexstr=user_hexstr))
 
     async with App().db.acquire_connection() as conn:
@@ -117,17 +103,30 @@ async def get_trades(token_hexstr, user_hexstr=None):
             FROM trades
             WHERE {}
             ORDER BY block_number DESC, date DESC
-            LIMIT 300
+            LIMIT 100
             """.format(where),
             *placeholder_args)
 
+async def get_new_trades(created_after):
+    async with App().db.acquire_connection() as conn:
+        return await conn.fetch(
+            """
+            SELECT *
+            FROM trades
+            WHERE ("date" >= $1) AND ("token_give" = $2 OR "token_get" = $2)
+            ORDER BY block_number DESC, date DESC
+            """,
+            created_after,
+            ZERO_ADDR_BYTES)
+
 def format_transfer(transfer):
     contract = ERC20Token(transfer["token"])
+
     return {
         "txHash": Web3.toHex(transfer["transaction_hash"]),
         "tokenAddr": Web3.toHex(transfer["token"]),
         "user": Web3.toHex(transfer["user"]),
-        "kind": transfer["direction"],
+        "kind": transfer["direction"].title(),
         "amount": str(contract.denormalize_value(transfer["amount"])),
         "balance": str(contract.denormalize_value(transfer["balance_after"])),
         "date": transfer["date"].isoformat()
@@ -141,18 +140,29 @@ async def get_transfers(token_hexstr, user_hexstr):
             FROM transfers
             WHERE "user" = $1 AND ("token" = $2 OR "token" = $3)
             ORDER BY block_number DESC, date DESC
-            LIMIT 300
+            LIMIT 100
             """,
             Web3.toBytes(hexstr=user_hexstr),
             Web3.toBytes(hexstr=token_hexstr),
             Web3.toBytes(hexstr=ZERO_ADDR))
 
-async def get_orders(token_give_hexstr, token_get_hexstr, user_hexstr=None, expires_after=None, state=None, sort=None):
+async def get_new_transfers(created_after):
+    async with App().db.acquire_connection() as conn:
+        return await conn.fetch(
+            """
+            SELECT *
+            FROM transfers
+            WHERE ("date" >= $1)
+            ORDER BY block_number DESC, date DESC
+            """,
+            created_after)
+
+async def get_orders(token_give_hexstr, token_get_hexstr, user_hexstr=None, expires_after=None, state=None, with_available_volume=False, sort=None):
     where = '("token_give" = $1 AND "token_get" = $2)'
     placeholder_args = [
         Web3.toBytes(hexstr=token_give_hexstr),
         Web3.toBytes(hexstr=token_get_hexstr)
-        ]
+    ]
 
     if user_hexstr:
         where += ' AND ("user" = ${})'.format(len(placeholder_args) + 1)
@@ -166,11 +176,12 @@ async def get_orders(token_give_hexstr, token_get_hexstr, user_hexstr=None, expi
         where += ' AND ("state" = ${})'.format(len(placeholder_args) + 1)
         placeholder_args.append(state)
 
+    if with_available_volume:
+        where += ' AND ("available_volume" IS NULL OR "available_volume" > 0)'
+
     order_by = ['expires ASC']
     if sort is not None:
         order_by.insert(0, sort)
-
-    logger.debug(where)
 
     async with App().db.acquire_connection() as conn:
         return await conn.fetch(
@@ -179,41 +190,52 @@ async def get_orders(token_give_hexstr, token_get_hexstr, user_hexstr=None, expi
             FROM orders
             WHERE {}
             ORDER BY {}
-            LIMIT 500
+            LIMIT 100
             """.format(where, ", ".join(order_by)),
             *placeholder_args)
 
+async def get_updated_orders(updated_after, token_give_hexstr=None, token_get_hexstr=None):
+    """
+    Returns a list of order Records created or updated after a given datetime,
+    filtered by at most one of token_give_hexstr, token_get_hexstr.
+
+    Arguments:
+    - updated_after: a datetime object.
+    - token_give_hexstr: 0x-prefixed hex encoding Ethereum address, optional.
+    - token_get_hexstr: 0x-prefixed hex encoding Ethereum address, optional.
+    """
+
+    where = '("date" >= $1 OR "updated" >= $1)'
+    placeholder_args = [updated_after]
+
+    if token_give_hexstr:
+        where += ' AND ("token_give" = $2)'
+        placeholder_args.append(Web3.toBytes(hexstr=token_give_hexstr))
+    elif token_get_hexstr:
+        where += ' AND ("token_get" = $2)'
+        placeholder_args.append(Web3.toBytes(hexstr=token_get_hexstr))
+
+    async with App().db.acquire_connection() as conn:
+        return await conn.fetch(
+            """
+            SELECT *
+            FROM orders
+            WHERE {}
+            ORDER BY updated ASC, date ASC
+            """.format(where),
+            *placeholder_args)
+
+from ..tasks.update_order import update_order_by_signature
 def format_order(record):
     contract_give = ERC20Token(record["token_give"])
     contract_get = ERC20Token(record["token_get"])
 
     side = "buy" if record["token_give"] == ZERO_ADDR_BYTES else "sell"
-    if side == "buy":
-        coin_contract = ERC20Token(record["token_get"])
-        base_contract = ERC20Token(record["token_give"])
-
-        available_volume = record["amount_get"] - record["amount_fill"]
-        eth_available_volume = coin_contract.denormalize_value(available_volume)
-
-        filled_base = record["amount_fill"] * record["amount_give"] / record["amount_get"]
-        available_volume_base = record["amount_give"] - filled_base
-        eth_available_volume_base = base_contract.denormalize_value(available_volume_base)
-    else:
-        coin_contract = ERC20Token(record["token_give"])
-        base_contract = ERC20Token(record["token_get"])
-
-        available_volume = record["amount_give"] - record["amount_fill"]
-        eth_available_volume = coin_contract.denormalize_value(available_volume)
-
-        filled_base = record["amount_fill"] * record["amount_get"] / record["amount_give"]
-        available_volume_base = record["amount_get"] - filled_base
-        eth_available_volume_base = base_contract.denormalize_value(available_volume_base)
-
-    price = eth_available_volume_base / eth_available_volume if eth_available_volume > 0 else 0.0
 
     response = {
         "id": "{}_{}".format(Web3.toHex(record["signature"]), side),
         "user": Web3.toHex(record["user"]),
+        "state": record["state"],
 
         "tokenGet": Web3.toHex(record["token_get"]),
         "amountGet": str(record["amount_get"]).lower(),
@@ -222,86 +244,258 @@ def format_order(record):
         "expires": str(record["expires"]),
         "nonce": str(record["nonce"]).lower(),
 
+        # Signature: null on on-chain orders
+        "v": record["v"],
+        "r": Web3.toHex(record["r"]) if record["r"] else None,
+        "s": Web3.toHex(record["s"]) if record["s"] else None,
+
+        "date": record["date"].isoformat(),
+        "updated": (record["updated"] or record["date"]).isoformat()
+    }
+
+    if side == "buy":
+        coin_contract = ERC20Token(record["token_get"])
+        base_contract = ERC20Token(record["token_give"])
+
+        price = base_contract.denormalize_value(record["amount_give"]) / coin_contract.denormalize_value(record["amount_get"])
+
+        if record["available_volume"] is not None:
+            available_volume = record["available_volume"]
+        else:
+            available_volume = record["amount_get"]
+        eth_available_volume = coin_contract.denormalize_value(available_volume)
+
+        # available base volume = available token volume * price
+        available_volume_base = (available_volume * record["amount_give"]) / record["amount_get"]
+        eth_available_volume_base = base_contract.denormalize_value(available_volume_base)
+    else:
+        coin_contract = ERC20Token(record["token_give"])
+        base_contract = ERC20Token(record["token_get"])
+
+        price = base_contract.denormalize_value(record["amount_get"]) / coin_contract.denormalize_value(record["amount_give"])
+
+        if record["available_volume"] is not None:
+            available_volume_base = record["available_volume"]
+        else:
+            available_volume_base = record["amount_get"]
+        eth_available_volume_base = base_contract.denormalize_value(available_volume_base)
+
+        # available token volume = available base volume * price
+        available_volume = (available_volume_base * record["amount_give"]) / record["amount_get"]
+        eth_available_volume = coin_contract.denormalize_value(available_volume)
+
+    response.update({
         "availableVolume": str(available_volume).lower(),
         "ethAvailableVolume": str(eth_available_volume).lower(),
         "availableVolumeBase": str(available_volume_base).lower(),
         "ethAvailableVolumeBase": str(eth_available_volume_base).lower(),
 
         "amount": str(available_volume if side == "sell" else -available_volume).lower(),
-        "amountFilled": str(record["amount_fill"]).lower(),
+        "amountFilled": str(record["amount_fill"] or 0).lower(),
         "price": str(price).lower(),
+    })
 
-        "state": record["state"],
-
-        # Signature: null on on-chain orders
-        "v": record["v"],
-        "r": Web3.toHex(record["r"]),
-        "s": Web3.toHex(record["s"]),
-
-        "date": record["date"].isoformat(),
-        "updated": record["date"].isoformat() # TODO: Updated time
-    }
+    # Mark order deleted if it is closed or if available volume is 0
+    if record["state"] != OrderState.OPEN.name or \
+        (record["available_volume"] and record["available_volume"] == 0):
+        response.update({ "deleted": True })
 
     return response
 
+async def get_tickers():
+    async with App().db.acquire_connection() as conn:
+        return await conn.fetch("""
+            SELECT *
+            FROM tickers
+            WHERE token_address != $1
+            """, ZERO_ADDR_BYTES)
+
+def ticker_key(ticker):
+    """
+    Given a ticker record, returns a ticker dictionary key.
+
+    The key consists of base name (currently, ETH), an underscore, and 9
+    first characters of the contract address.
+    """
+    return "{}_{}".format("ETH", Web3.toHex(ticker["token_address"])[:9])
+
+def format_ticker(ticker):
+    return dict(
+        tokenAddr=Web3.toHex(ticker["token_address"]),
+        quoteVolume=str(ticker["quote_volume"]).lower(),
+        baseVolume=str(ticker["base_volume"]).lower(),
+        last=str(ticker["last"]).lower() if ticker["last"] else None,
+        bid=str(ticker["bid"]).lower() if ticker["bid"] else None,
+        ask=str(ticker["ask"]).lower() if ticker["ask"] else None,
+        updated=ticker["updated"].isoformat()
+    )
+
+def format_tickers(tickers):
+    return {
+        ticker_key(ticker): format_ticker(ticker)
+        for ticker in tickers
+    }
+
+@routes.get('/returnTicker')
+async def http_return_ticker(request):
+    return web.json_response(format_tickers(await get_tickers()))
+
 @sio.on('getMarket')
 async def get_market(sid, data):
-    print("getMarket", data)
-
     current_block = App().web3.eth.getBlock("latest")["number"]
     token = data["token"] if "token" in data and Web3.isAddress(data["token"]) else None
     user = data["user"] if "user" in data and Web3.isAddress(data["user"]) else None
 
-    # response vars
-    trades = []
-    my_trades = []
-    my_funds = []
-    
-    # get all tickers
-    tickers = await get_tickers()
-    
-    # if token is passed in
+    response = {
+        "returnTicker": format_tickers(await get_tickers())
+    }
+
     if token:
-        
-        # get all trades
         trades = await get_trades(token)
-        
-        # get all buy orders
         orders_buys = await get_orders(ZERO_ADDR, token,
                                         state=OrderState.OPEN.name,
+                                        with_available_volume=True,
                                         sort="(amount_give / amount_get) DESC",
                                         expires_after=current_block)
-        
-        # get all sell orders
         orders_sells = await get_orders(token, ZERO_ADDR,
                                         state=OrderState.OPEN.name,
+                                        with_available_volume=True,
                                         sort="(amount_get / amount_give) ASC",
                                         expires_after=current_block)
-        
-        # if user is also passed in 
+
+        response.update({
+            "trades": [format_trade(trade) for trade in trades],
+            "orders": {
+                "buys": [format_order(order) for order in orders_buys],
+                "sells": [format_order(order) for order in orders_sells]
+            }
+        })
+
         if user:
             my_trades = await get_trades(token, user)
             my_funds = await get_transfers(token, user)
-
-    # return this variable
-    response = {
-        "returnTicker": [format_ticker(ticker) for ticker in tickers],
-        "trades": [format_trade(trade) for trade in trades],
-        "myTrades": [format_trade(trade) for trade in my_trades],
-        "myFunds": [format_transfer(transfer) for transfer in my_funds],
-        "orders": {
-            "buys": [format_order(order) for order in orders_buys],
-            "sells": [format_order(order) for order in orders_sells]
-        }
-    }
+            my_orders_buys = await get_orders(ZERO_ADDR, token,
+                                            user_hexstr=user,
+                                            state=OrderState.OPEN.name,
+                                            sort="(amount_give / amount_get) DESC",
+                                            expires_after=current_block)
+            my_orders_sells = await get_orders(token, ZERO_ADDR,
+                                            user_hexstr=user,
+                                            state=OrderState.OPEN.name,
+                                            sort="(amount_get / amount_give) ASC",
+                                            expires_after=current_block)
+            response.update({
+                "myTrades": [format_trade(trade) for trade in my_trades],
+                "myFunds": [format_transfer(transfer) for transfer in my_funds],
+                "myOrders": {
+                    "buys": [format_order(order) for order in my_orders_buys],
+                    "sells": [format_order(order) for order in my_orders_sells]
+                }
+            })
 
     await sio.emit('market', response, room=sid)
 
+STREAM_UPDATES_INTERVAL = 5.0
+async def stream_updates():
+    while True:
+        updated_after = datetime.utcnow()
+        await sio.sleep(STREAM_UPDATES_INTERVAL)
+
+        # Stream updated orders
+        orders_buys = await get_updated_orders(updated_after, token_give_hexstr=ZERO_ADDR)
+        orders_sells = await get_updated_orders(updated_after, token_get_hexstr=ZERO_ADDR)
+        if orders_buys or orders_sells: # Emit when there are updates only
+            await sio.emit("orders", {
+                "buys": [format_order(order) for order in orders_buys],
+                "sells": [format_order(order) for order in orders_sells]
+            })
+
+        # Stream new trades
+        trades = await get_new_trades(updated_after)
+        if trades: # Emit when there are updates
+            await sio.emit("trades", [format_trade(trade) for trade in trades])
+
+        # Stream new transfers
+        transfers = await get_new_transfers(updated_after)
+        if transfers:
+            await sio.emit("funds", [format_transfer(transfer) for transfer in transfers])
+
+from ..src.order_hash import make_order_hash
+from ..src.order_message_validator import OrderMessageValidator
+from ..src.order_signature import order_signature_valid
+from ..src.record_order import record_order
+@sio.on('message')
+async def handle_order(sid, data):
+    """
+    Handles `message` event type. See schema for payload schema.
+
+    On error, emits a `messageResult` event to the originating sid with an array payload, containing:
+    1. Error code:
+      - 400 if the event payload could not be interpreted due to client error (cf. https://httpstatuses.com/400)
+      - 422 if the event payload contained semantic errors (cf. https://httpstatuses.com/422)
+    2. A string error message with a brief description of the problem.
+    3. An object containing some useful details for debugging.
+
+    On success, emits a `messageResult` event to the originating sid with an array payload, containing:
+    1. Success code 202: the order has been accepted.
+    2. A brief message confirming success.
+    """
+    v = OrderMessageValidator()
+    if not v.validate(data):
+        error_msg = "Invalid message format"
+        details_dict = dict(data=data, errors=v.errors)
+        logger.warning("Order rejected: %s: %s", error_msg, details_dict)
+        await sio.emit("messageResult", [400, error_msg, details_dict], room=sid)
+        return
+
+    message = v.document # Get data with validated and coerced values
+
+    # Require new orders are posted to the latest contract
+    if message["contractAddr"].lower() != ED_CONTRACT_ADDR.lower():
+        error_msg = "Cannot post an order to contract {}".format(message["contractAddr"].lower())
+        logger.warning("Order rejected: %s", error_msg)
+        await sio.emit("messageResult", [422, error_msg], room=sid)
+        return
+
+    # Require one side of the order to be base currency
+    if message["tokenGet"] != ZERO_ADDR and message["tokenGive"] != ZERO_ADDR:
+        error_msg = "Cannot post order with pair {}-{}: neither is a base currency".format(message["tokenGet"], message["tokenGive"])
+        logger.warning("Order rejected: %s", error_msg)
+        await sio.emit("messageResult", [422, error_msg], room=sid)
+        return
+
+    # Require new orders to be non-expired
+    current_block = App().web3.eth.blockNumber # TODO: Introduce a strict timeout here; on failure allow order
+    if message["expires"] <= current_block:
+        error_msg = "Cannot post order because it has already expired"
+        details_dict = { "blockNumber": current_block, "expires": message["expires"], "date": datetime.utcnow().isoformat() }
+        logger.warning("Order rejected: %s: %s", error_msg, details_dict)
+        await sio.emit("messageResult", [422, error_msg, details_dict], room=sid)
+        return
+
+    # Oh yes, require orders to have a valid signature
+    if not order_signature_valid(message):
+        logger.warning("Order rejected: Invalid signature: order = %s", message)
+        error_msg = "Cannot post order: invalid signature"
+        await sio.emit("messageResult", [422, error_msg], room=sid)
+        return
+
+    # 3. Record order
+    did_insert = await record_order(message)
+    if did_insert:
+        signature = make_order_hash(message)
+        logger.info("recorded order signature=%s, user=%s, expires=%i", signature, message["user"], message["expires"])
+
+        # 4. Enqueue a job to refresh available volume
+        update_order_by_signature(signature)
+
+    await sio.emit('messageResult', [202, "Good job!"], room=sid)
+
 @sio.on('disconnect')
 def disconnect(sid):
-    print('disconnect ', sid)
+    logger.debug('disconnect %s', sid)
 
+app.router.add_routes(routes)
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(App().db.establish_connection())
+    sio.start_background_task(stream_updates)
     web.run_app(app)
