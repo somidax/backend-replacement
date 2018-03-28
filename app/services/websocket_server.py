@@ -23,7 +23,7 @@ ZERO_ADDR_BYTES = Web3.toBytes(hexstr=ZERO_ADDR)
 logger = logging.getLogger('websocket_server')
 logger.setLevel(logging.DEBUG)
 
-ALLOWED_ORIGIN_SUFFIXES = ('somidax.com', 'coinestate.somidax.net', 'somidax.github.io', 'deltabalances.github.io', 'localhost', 'devd.io')
+ALLOWED_ORIGIN_SUFFIXES = ('https://coinestate.somidax.net','https://api.somidax.net', 'https://somidax.net','https://github.com/somidax/coinEstate/blob/master/index.html', 'https://github.com/somidax/coinEstate','deltabalances.github.io', 'localhost', 'devd.io')
 from urllib.parse import urlparse
 def is_origin_allowed(origin):
     """
@@ -32,16 +32,16 @@ def is_origin_allowed(origin):
     Otherwise, returns False.
 
     Eg.:
-    is_origin_allowed("https://somidax.github.io") => True
+    is_origin_allowed("https://github.com/somidax/coinEstate") => True
     is_origin_allowed("https://somidax.net/") => True
-    is_origin_allowed("https://coinestate.somidax.net/") => True
     is_origin_allowed("https://api.somidax.net/") => True
+    is_origin_allowed("https://github.com/somidax/coinEstate/blob/master/index.html/") => True
     is_origin_allowed("file://") => False
-    is_origin_allowed("https://somidax.bs/") => False
+    is_origin_allowed("https://RYXEX.bs/") => False
     is_origin_allowed("https://forkscamster.github.io/") => False
     """
 
-     parsed = urlparse(origin)
+    parsed = urlparse(origin)
     if parsed.scheme in ('http', 'https'):
         return isinstance(parsed.hostname, str) and any([
             parsed.hostname.endswith(suffix)
@@ -198,6 +198,7 @@ async def get_updated_orders(updated_after, token_give_hexstr=None, token_get_he
     """
     Returns a list of order Records created or updated after a given datetime,
     filtered by at most one of token_give_hexstr, token_get_hexstr.
+
     Arguments:
     - updated_after: a datetime object.
     - token_give_hexstr: 0x-prefixed hex encoding Ethereum address, optional.
@@ -312,6 +313,7 @@ async def get_tickers():
 def ticker_key(ticker):
     """
     Given a ticker record, returns a ticker dictionary key.
+
     The key consists of base name (currently, ETH), an underscore, and 9
     first characters of the contract address.
     """
@@ -426,12 +428,14 @@ from ..src.record_order import record_order
 async def handle_order(sid, data):
     """
     Handles `message` event type. See schema for payload schema.
+
     On error, emits a `messageResult` event to the originating sid with an array payload, containing:
     1. Error code:
       - 400 if the event payload could not be interpreted due to client error (cf. https://httpstatuses.com/400)
       - 422 if the event payload contained semantic errors (cf. https://httpstatuses.com/422)
     2. A string error message with a brief description of the problem.
     3. An object containing some useful details for debugging.
+
     On success, emits a `messageResult` event to the originating sid with an array payload, containing:
     1. Success code 202: the order has been accepted.
     2. A brief message confirming success.
