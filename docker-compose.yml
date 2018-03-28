@@ -12,6 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
       WS_PROVIDER_URL: ${WS_PROVIDER_URL}
+      COMPONENT: contract_observer
     links:
       - postgres
       - redis
@@ -29,6 +30,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      COMPONENT: etherDellta_observer
     links:
       - postgres
       - redis
@@ -46,6 +48,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      HUEY_CONCURRENCY: ${HUEY_CONCURRENCY}
+      COMPONENT: huey_consumer
     links:
       - postgres
       - redis
@@ -78,6 +82,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       HTTP_PROVIDER_URL: ${HTTP_PROVIDER_URL}
+      COMPONENT: ticker
     links:
       - postgres
       - redis
