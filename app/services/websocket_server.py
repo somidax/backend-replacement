@@ -2,7 +2,6 @@ from aiohttp import web
 import asyncio
 from datetime import datetime
 import logging
-from ..src.erc20_token import ERC20Token
 from time import time
 import socketio
 from web3 import Web3
@@ -24,7 +23,7 @@ ZERO_ADDR_BYTES = Web3.toBytes(hexstr=ZERO_ADDR)
 logger = logging.getLogger('websocket_server')
 logger.setLevel(logging.DEBUG)
 
-ALLOWED_ORIGIN_SUFFIXES = ('https://coinestate.somidax.net','https://api.somidax.net', 'https://somidax.net','https://github.com/somidax/coinEstate/blob/master/index.html', 'https://github.com/somidax/coinEstate','deltabalances.github.io', 'localhost', 'devd.io')
+ALLOWED_ORIGIN_SUFFIXES = ('https://coinestate.somidax.net','https://api.somidax.net','forkdelta.com', 'https://forkdelta.github.io', 'deltabalances.github.io','https://github.com/somidax/coinEstate', 'localhost', 'devd.io')
 from urllib.parse import urlparse
 def is_origin_allowed(origin):
     """
@@ -33,12 +32,15 @@ def is_origin_allowed(origin):
     Otherwise, returns False.
 
     Eg.:
+    is_origin_allowed("https://forkdelta.github.io") => True
+    is_origin_allowed("https://forkdelta.com/") => True
+    is_origin_allowed("https://api.forkdelta.com/") => True
     is_origin_allowed("https://github.com/somidax/coinEstate") => True
     is_origin_allowed("https://somidax.net/") => True
     is_origin_allowed("https://api.somidax.net/") => True
     is_origin_allowed("https://github.com/somidax/coinEstate/blob/master/index.html/") => True
     is_origin_allowed("file://") => False
-    is_origin_allowed("https://RYXEX.bs/") => False
+    is_origin_allowed("https://forkdelta.bs/") => False
     is_origin_allowed("https://forkscamster.github.io/") => False
     """
 
