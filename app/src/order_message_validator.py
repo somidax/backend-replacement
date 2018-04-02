@@ -53,5 +53,5 @@ class OrderMessageValidator(OrderMessageValidatorBase):
 
 class OrderMessageValidatorEtherdelta(OrderMessageValidatorBase):
     def __init__(self, *args, **kwargs):
-        super().__init__(ORDER_MESSAGE_SCHEMA_ETHERDELTA, *args, **kwargs)
+        super().__init__(ORDER_MESSAGE_SCHEMA_COINESTATE, *args, **kwargs)
         self.allow_unknown = True
