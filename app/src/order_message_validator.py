@@ -30,7 +30,7 @@ ORDER_MESSAGE_SCHEMA = {
     "s": { "type": "binary", "required": True, "coerce": hexstr_to_bytes, "minlength": 32, "maxlength": 32 },
 }
 
-ORDER_MESSAGE_SCHEMA_ETHERDELTA = {
+ORDER_MESSAGE_SCHEMA_COINESTATE = {
     "tokenGet": { "type": "string", "required": True, "coerce": to_normalized_address, "validator": validate_0x_prefixed_hex_address },
     "amountGet": { "type": "integer", "required": True, "coerce": str_to_decimal_to_int, "min": 1 },
     "tokenGive": { "type": "string", "required": True, "coerce": to_normalized_address, "validator": validate_0x_prefixed_hex_address },
@@ -51,7 +51,7 @@ class OrderMessageValidator(OrderMessageValidatorBase):
     def __init__(self, *args, **kwargs):
         super().__init__(ORDER_MESSAGE_SCHEMA, *args, **kwargs)
 
-class OrderMessageValidatorEtherdelta(OrderMessageValidatorBase):
+class OrderMessageValidatorcoinEstate(OrderMessageValidatorBase):
     def __init__(self, *args, **kwargs):
         super().__init__(ORDER_MESSAGE_SCHEMA_COINESTATE, *args, **kwargs)
         self.allow_unknown = True
