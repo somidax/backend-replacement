@@ -1,7 +1,7 @@
 const commandLineArgs = require('command-line-args');
 const async = require('async');
-const API = require('./api.js');
-const marketMakerConfig = require('./market_maker_config.js');
+const API = require('backend-replacement/docs/api/api.js');
+const marketMakerConfig = require('backend-replacement/market_maker_config.js');
 
 const cli = [
   { name: 'help', alias: 'h', type: Boolean },
