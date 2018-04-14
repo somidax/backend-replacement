@@ -1,4 +1,9 @@
 ##
+# Project-specific
+new_tokens.csv
+
+##
+# Pythonic##
 # .gitignore based on https://github.com/github/gitignore/blob/master/Python.gitignore
 #
 
