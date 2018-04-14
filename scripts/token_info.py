@@ -4,7 +4,7 @@ from utils import *
 import yaml
 from yaml_utils import *
 
-LISTINGS = get_forkdelta_listings()
+LISTINGS = get_coinEstate_listings()
 
 DEFAULT_LINK_FIELDS = frozenset((
     "Website", "Bitcointalk", "Blog", "Whitepaper",
