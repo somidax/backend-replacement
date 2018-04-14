@@ -4,7 +4,7 @@ import sys
 import yaml
 from yaml_utils import *
 
-LISTINGS = get_forkdelta_listings()
+LISTINGS = get_coinEstate_listings()
 
 if __name__ == "__main__":
     for (idx, token) in enumerate(LISTINGS):
