@@ -46,7 +46,7 @@ class App:
         def updateTokens(self):
             try:
                 self._tokensUpdateTime = datetime.utcnow()
-                fd_config=requests.get(config.FRONTEND_CONFIG_FILE).json()
+                ce_config=requests.get(config.FRONTEND_CONFIG_FILE).json()
                 self._tokens = fd_config['tokens']
                 self.logger.info("Token list refreshed: %i tokens.", len(self._tokens))
             except Exception as e:
