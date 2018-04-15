@@ -6,7 +6,7 @@ coinEstate's API gives you access to ticker information, orders, trades, deposit
 # Websocket Server
 
 coinEstate's API is socket.io based. The API utilizes SSL on all connections to keep your data private.
-You can connect to RYXEX's API through this endpoint:
+You can connect to somidax API through this endpoint:
 
  - https://api.somidax.net
 
