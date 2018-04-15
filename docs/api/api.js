@@ -42,15 +42,15 @@ API.init = function init(callback, allContracts, path, provider, configName, loo
 
     // path
     if (path) {
-      this.config.contractDecentrEx = path + this.config.contractDecentrEx;
+      this.config.contractcoinEstate = path + this.config.contractcoinEstate;
       this.config.contractToken = path + this.config.contractToken;
     }
 
     // contracts
-    this.contractDecentrEx = undefined;
-    this.contractDecentrExAddrs = [this.config.contractDecentrExAddrs[0].addr];
+    this.contractcoinEstate = undefined;
+    this.contractcoinEstateAddrs = [this.config.contractcoinEstateAddrs[0].addr];
     if (allContracts) {
-      this.contractDecentrExAddrs = this.config.contractDecentrExAddrs.map(x => x.addr);
+      this.contractcoinEstateAddrs = this.config.contractcoinEstateAddrs.map(x => x.addr);
     }
     this.contractToken = undefined;
 
@@ -64,7 +64,7 @@ API.init = function init(callback, allContracts, path, provider, configName, loo
     this.ordersCache = {};
     this.usersWithOrdersToUpdate = {};
     this.blockTimeSnapshot = undefined;
-    this.minOrderSize = 0.01;
+    this.minOrderSize = 0.001;
     this.pricesCache = undefined;
     this.nonce = undefined;
 
@@ -73,10 +73,10 @@ API.init = function init(callback, allContracts, path, provider, configName, loo
         (callbackSeries) => {
           this.utility.loadContract(
             this.web3,
-            this.config.contractDecentrEx,
-            this.contractDecentrExAddrs[0],
+            this.config.contractcoinEstate,
+            this.contractcoinEstateAddrs[0],
             (err, contract) => {
-              this.contractDecentrEx = contract;
+              this.contractcoinEstate = contract;
               callbackSeries(null, true);
             });
         },
@@ -113,7 +113,7 @@ API.init = function init(callback, allContracts, path, provider, configName, loo
       ],
       () => {
         callback(null, {
-          contractDecentrEx: this.contractDecentrEx,
+          contractcoinEstate: this.contractcoinEstate,
           contractToken: this.contractToken,
         });
       });
@@ -178,10 +178,10 @@ API.logs = function logs(callback, lookbackIn) {
       if (event.blockNumber < startBlock) delete this.eventsCache[id]; // delete old events
     });
     async.mapSeries(
-      this.contractDecentrExAddrs,
-      (contractDecentrExAddr, callbackMap) => {
+      this.contractcoinEstateAddrs,
+      (contractcoinEstateAddr, callbackMap) => {
         const blocks = Object.values(this.eventsCache)
-          .filter(x => x.address === contractDecentrExAddr)
+          .filter(x => x.address === contractcoinEstateAddr)
           .map(x => x.blockNumber);
         const lastBlock = blocks.length ? blocks.max() : startBlock;
         const searches = [];
@@ -194,8 +194,8 @@ API.logs = function logs(callback, lookbackIn) {
           (searchRange, callbackMapSearch) => {
             this.utility.logsOnce(
               this.web3,
-              this.contractDecentrEx,
-              contractDecentrExAddr,
+              this.contractcoinEstate,
+              contractcoinEstateAddr,
               searchRange[0],
               searchRange[1],
               (errEvents, events) => {
@@ -269,13 +269,13 @@ API.getBalance = function getBalance(addr, callback) {
   });
 };
 
-API.getDecentrExBalance = function getDecentrExBalance(addr, callback) {
+API.getcoinEstateBalance = function getcoinEstateBalance(addr, callback) {
   if (addr.length === 42) {
     const token = '0x0000000000000000000000000000000000000000'; // ether token
     this.utility.call(
       this.web3,
-      this.contractDecentrEx,
-      this.contractDecentrExAddrs[0],
+      this.contractcoinEstate,
+      this.contractcoinEstateAddrs[0],
       'balanceOf',
       [token, addr],
       (err, result) => {
@@ -290,7 +290,7 @@ API.getDecentrExBalance = function getDecentrExBalance(addr, callback) {
   }
 };
 
-API.getDecentrExTokenBalances = function getDecentrExTokenBalances(addr, callback) {
+API.getcoinEstateTokenBalances = function getcoinEstateTokenBalances(addr, callback) {
   if (addr.length === 42) {
     async.reduce(
       this.config.tokens,
@@ -298,8 +298,8 @@ API.getDecentrExTokenBalances = function getDecentrExTokenBalances(addr, callbac
       (memo, token, callbackReduce) => {
         this.utility.call(
           this.web3,
-          this.contractDecentrEx,
-          this.contractDecentrExAddrs[0],
+          this.contractcoinEstate,
+          this.contractcoinEstateAddrs[0],
           'balanceOf',
           [token.addr, addr],
           (err, result) => {
@@ -407,14 +407,14 @@ API.getUSDBalance = function getUSDBalance(addr, tokenPrices, callback) {
         API.getTokenBalances(addr, callbackParallel);
       },
       (callbackParallel) => {
-        API.getDecentrExTokenBalances(addr, callbackParallel);
+        API.getcoinEstateTokenBalances(addr, callbackParallel);
       },
       (callbackParallel) => {
         API.getCoinMarketCapTicker(callbackParallel);
       },
     ],
     (err, results) => {
-      const balances = { Wallet: results[0], DecentrEx: results[1] };
+      const balances = { Wallet: results[0], coinEstate: results[1] };
       const tickers = results[2];
       let total = 0;
       const ETHUSD = Number(tickers.filter(x => x.symbol === 'ETH')[0].price_usd);
@@ -579,7 +579,7 @@ API.addOrderFromMessage = function addOrderFromMessage(messageIn, callback) {
 };
 
 API.addOrderFromEvent = function addOrderFromEvent(event, callback) {
-  if (event.event === 'Order' && event.address === this.contractDecentrExAddrs[0]) {
+  if (event.event === 'Order' && event.address === this.contractcoinEstateAddrs[0]) {
     const id = (event.blockNumber * 1000) + event.transactionIndex;
     if (!this.ordersCache[`${id}_buy`]) {
       const buyOrder = {
@@ -659,8 +659,8 @@ API.updateOrder = function updateOrder(orderIn, callback) {
         () => {
           this.utility.call(
             this.web3,
-            this.contractDecentrEx,
-            this.contractDecentrExAddrs[0],
+            this.contractcoinEstate,
+            this.contractcoinEstateAddrs[0],
             'availableVolume',
             [
               order.order.tokenGet,
@@ -713,8 +713,8 @@ API.updateOrder = function updateOrder(orderIn, callback) {
                 Number(order.ethAvailableVolumeBase).toFixed(3) >= this.minOrderSize) {
                   this.utility.call(
                     this.web3,
-                    this.contractDecentrEx,
-                    this.contractDecentrExAddrs[0],
+                    this.contractcoinEstate,
+                    this.contractcoinEstateAddrs[0],
                     'amountFilled',
                     [
                       order.order.tokenGet,
@@ -892,7 +892,7 @@ API.getTrades = function getTrades(callback) {
   const trades = [];
   const events = Object.values(this.eventsCache);
   events.forEach((event) => {
-    if (event.event === 'Trade' && this.contractDecentrExAddrs.indexOf(event.address) >= 0) {
+    if (event.event === 'Trade' && this.contractcoinEstateAddrs.indexOf(event.address) >= 0) {
       if (event.args.amountGive.toNumber() > 0 && event.args.amountGet.toNumber() > 0) {
         // don't show trades involving 0 amounts
         // sell
@@ -938,7 +938,7 @@ API.getFees = function getFees(callback) {
   const feeMake = new BigNumber(0.000);
   const events = Object.values(this.eventsCache);
   events.forEach((event) => {
-    if (event.event === 'Trade' && this.contractDecentrExAddrs.indexOf(event.address) >= 0) {
+    if (event.event === 'Trade' && this.contractcoinEstateAddrs.indexOf(event.address) >= 0) {
       if (event.args.amountGive.toNumber() > 0 && event.args.amountGet.toNumber() > 0) {
         // don't show trades involving 0 amounts
         // take fee
@@ -968,7 +968,7 @@ API.getVolumes = function getVolumes(callback) {
   const volumes = [];
   const events = Object.values(this.eventsCache);
   events.forEach((event) => {
-    if (event.event === 'Trade' && this.contractDecentrExAddrs.indexOf(event.address) >= 0) {
+    if (event.event === 'Trade' && this.contractcoinEstateAddrs.indexOf(event.address) >= 0) {
       if (event.args.amountGive.toNumber() > 0 && event.args.amountGet.toNumber() > 0) {
         // don't show trades involving 0 amounts
         volumes.push({
@@ -996,7 +996,7 @@ API.getDepositsWithdrawals = function getDepositsWithdrawals(callback) {
   const depositsWithdrawals = [];
   const events = Object.values(this.eventsCache);
   events.forEach((event) => {
-    if (event.event === 'Deposit' && this.contractDecentrExAddrs.indexOf(event.address >= 0)) {
+    if (event.event === 'Deposit' && this.contractcoinEstateAddrs.indexOf(event.address >= 0)) {
       if (event.args.amount.toNumber() > 0) {
         const token = API.getToken(event.args.token);
         depositsWithdrawals.push({
@@ -1009,7 +1009,7 @@ API.getDepositsWithdrawals = function getDepositsWithdrawals(callback) {
         });
       }
     } else if (
-      event.event === 'Withdraw' && this.contractDecentrExAddrs.indexOf(event.address) >= 0
+      event.event === 'Withdraw' && this.contractcoinEstateAddrs.indexOf(event.address) >= 0
     ) {
       if (event.args.amount.toNumber() > 0) {
         const token = API.getToken(event.args.token);
@@ -1092,8 +1092,8 @@ API.publishOrder = function publishOrder(
   }
   this.utility.call(
     this.web3,
-    this.contractDecentrEx,
-    this.contractDecentrExAddrs[0],
+    this.contractcoinEstate,
+    this.contractcoinEstateAddrs[0],
     'balanceOf',
     [tokenGive, addr],
     (err, result) => {
@@ -1104,7 +1104,7 @@ API.publishOrder = function publishOrder(
           // offchain order
         const condensed = this.utility.pack(
           [
-            this.contractDecentrExAddrs[0],
+            this.contractcoinEstateAddrs[0],
             tokenGet,
             amountGet,
             tokenGive,
@@ -1120,7 +1120,7 @@ API.publishOrder = function publishOrder(
           } else {
               // Send order to Gitter channel:
             const order = {
-              contractAddr: this.contractDecentrExAddrs[0],
+              contractAddr: this.contractcoinEstateAddrs[0],
               tokenGet,
               amountGet,
               tokenGive,
@@ -1150,8 +1150,8 @@ API.publishOrder = function publishOrder(
           // onchain order
         API.utility.send(
             this.web3,
-            this.contractDecentrEx,
-            this.contractDecentrExAddrs[0],
+            this.contractcoinEstate,
+            this.contractcoinEstateAddrs[0],
             'order',
           [
             tokenGet,
