@@ -8,12 +8,9 @@ with open('coinEstate.abi.json') as f:
     import json
     ED_CONTRACT_ABI = json.load(f)
 ED_WS_SERVERS = [
-  "https://socket01.etherdelta.com/socket.io/?EIO=3&transport=websocket",
-  "wss://socket02.etherdelta.com/socket.io/?EIO=3&transport=websocket",
-  "wss://socket03.etherdelta.com/socket.io/?EIO=3&transport=websocket",
-  "wss://socket04.etherdelta.com/socket.io/?EIO=3&transport=websocket",
-  "wss://socket05.etherdelta.com/socket.io/?EIO=3&transport=websocket",
-  "wss://socket06.etherdelta.com/socket.io/?EIO=3&transport=websocket",
+  "wss://ws.radarrelay.com/0x/v0/ws",
+  
+ 
 ]
 
 POSTGRES_HOST = "postgres"
