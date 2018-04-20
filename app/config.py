@@ -8,7 +8,7 @@ with open('coinEstate.abi.json') as f:
     import json
     ED_CONTRACT_ABI = json.load(f)
 ED_WS_SERVERS = [
-  "wss://ws.radarrelay.com/0x/v0/ws",
+  "",
   
  
 ]
