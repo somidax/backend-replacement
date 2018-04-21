@@ -8,9 +8,7 @@ from app.src.contract_event_utils import block_timestamp
 from app.src.order_enums import OrderSource, OrderState
 from app.src.order_hash import make_order_hash
 from app.src.utils import coerce_to_int, parse_insert_status
-from ..tasks.update_order import update_orders_by_maker_and_token, update_order_by_signature
-
-from ..src.record_order import record_order
+from ..tasks.update_order import update_orders_by_maker_and_token
 
 ZERO_ADDR = "0x0000000000000000000000000000000000000000"
 
@@ -139,13 +137,13 @@ UPSERT_CANCELED_ORDER_STMT = """
     (
         "source", "signature",
         "token_give", "amount_give", "token_get", "amount_get",
-        "expires", "nonce", "user", "state", "date",
-        "amount_fill", "updated", "available_volume"
+        "expires", "nonce", "user", "state", "v", "r", "s", "date",
+        "amount_fill", "updated"
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     ON CONFLICT ON CONSTRAINT index_orders_on_signature
         DO UPDATE SET
-            "state" = $10, "amount_fill" = $12, "available_volume" = $14, "updated" = $13
+            "state" = $10, "amount_fill" = $15, "updated" = $16
             WHERE "orders"."signature" = $2
                 AND "orders"."state" = 'OPEN'::orderstate
 """
@@ -157,7 +155,7 @@ async def record_cancel(contract, event_name, event):
     if "r" in order and order["r"] is not None:
         source = OrderSource.OFFCHAIN
     else:
-        source = OrderSource.ONCHAIN
+        source = OrderSource.ONCHANIN
 
     upsert_args = (
         source.name,
@@ -170,10 +168,12 @@ async def record_cancel(contract, event_name, event):
         order["nonce"],
         Web3.toBytes(hexstr=order["user"]),
         OrderState.CANCELED.name,
+        int(order["v"]),
+        Web3.toBytes(text=order["r"]),
+        Web3.toBytes(text=order["s"]),
         date,
         order["amountGet"], # Contract updates orderFills to amountGet when trade is cancelled
-        date,
-        0 # Cancelled = 0 volume available
+        date
     )
 
     async with App().db.acquire_connection() as connection:
@@ -184,19 +184,3 @@ async def record_cancel(contract, event_name, event):
         logger.debug("recorded order cancel signature=%s", signature)
 
     return bool(did_upsert)
-
-async def process_order(contract, event_name, event):
-    """
-    On Order event, record the order, then schedule a job to update the newly inserted order.
-    """
-    order = event["args"]
-    signature = make_order_hash(order)
-
-    logger.debug("received order sig=%s", signature)
-    did_insert = await record_order(order, event["blockNumber"])
-
-    if did_insert:
-        logger.info("recorded order sig=%s", signature)
-        update_order_by_signature(signature)
-    else:
-        logger.debug("duplicate order sig=%s", signature)
