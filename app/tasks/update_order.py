@@ -17,7 +17,6 @@ logger.setLevel(logging.DEBUG)
 async def update_order_by_signature(order_signature):
     """
     Updates the fill of a single order given its signature.
-
     Arguments:
     order_signature: Order signature as a 0x-prefixed hex string
     """
@@ -32,7 +31,6 @@ async def update_orders_by_maker_and_token(maker_addr, token_addr, block_number)
     """
     Updates the fill of one or more orders given order maker and a token. The
     token may be on either side of the transaction.
-
     Arguments:
     marker_addr: Ethereum address of the order maker as a 0x-prefixed hex string
     token_addr: Address of the token on either side of the order as a 0x-prefixed hex string
@@ -63,7 +61,6 @@ FETCH_AFFECTED_ORDERS_STMT = """
     WHERE "user" = $1
         AND ("token_give" = $2 OR "token_get" = $2)
         AND "expires" >= $3
-        AND "state" = 'OPEN'::orderstate
 """
 async def fetch_affected_orders(order_maker, coin_addr, expiring_at):
     async with App().db.acquire_connection() as conn:
@@ -76,42 +73,23 @@ async def fetch_affected_orders(order_maker, coin_addr, expiring_at):
 UPDATE_ORDER_FILL_STMT = """
     UPDATE "orders"
     SET "amount_fill" = GREATEST("amount_fill", $1),
-        "available_volume" = $2,
         "state" = (CASE
                     WHEN "state" IN ('FILLED'::orderstate, 'CANCELED'::orderstate) THEN "state"
                     WHEN ("amount_get" <= GREATEST("amount_fill", $1)) THEN 'FILLED'::orderstate
                     ELSE 'OPEN'::orderstate END),
-        "updated"  = $3
-    WHERE "signature" = $4 AND ("updated" IS NULL OR "updated" <= $3)
+        "updated"  = $2
+    WHERE "signature" = $3
 """
 async def update_order(order):
     contract = App().web3.eth.contract(ED_CONTRACT_ADDR, abi=ED_CONTRACT_ABI)
 
-    order_args = order_as_args(order)
-
+    maker = Web3.toHex(order["user"])
+    signature = Web3.toBytes(order["signature"])
     updated_at = datetime.fromtimestamp(block_timestamp(App().web3, "latest"), tz=None)
-    amount_fill = contract.call().amountFilled(*order_args)
-    available_volume = contract.call().availableVolume(*order_args)
 
-    update_args = (amount_fill, available_volume, updated_at, order["signature"])
+    amount_fill = contract.call().orderFills(maker, signature)
+
+    update_args = (amount_fill, updated_at, signature)
     async with App().db.acquire_connection() as conn:
         await conn.execute(UPDATE_ORDER_FILL_STMT, *update_args)
-
-    logger.info("updated order signature=%s fill=%i available=%i",
-                    Web3.toHex(order["signature"]),
-                    amount_fill, available_volume)
-
-EMPTY_BYTES32 = b'0' * 32
-def order_as_args(order):
-    order = dict(order)
-    return (
-        Web3.toHex(order["token_get"]),
-        Web3.toInt(order["amount_get"]),
-        Web3.toHex(order["token_give"]),
-        Web3.toInt(order["amount_give"]),
-        Web3.toInt(order["expires"]),
-        Web3.toInt(order["nonce"]),
-        Web3.toHex(order["user"]),
-        order.get("v", 0),
-        order.get("r", EMPTY_BYTES32),
-        order.get("s", EMPTY_BYTES32))
+    logger.info("updated order signature=%s fill=%i", Web3.toHex(signature), amount_fill)
