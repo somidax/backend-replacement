@@ -43,3 +43,4 @@ cerberus==1.1
 # ecrecover support:
 coincurve>=7.0.0
 rlp>=0.4.7
+huey>=2.5.0 # not directly required, pinned by Snyk to avoid a vulnerability
